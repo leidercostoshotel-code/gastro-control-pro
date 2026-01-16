@@ -27136,11 +27136,13 @@ function mostrarLoginScreen() {
     loginDiv.innerHTML = `
         <div style="background: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 400px; width: 90%;">
             <div style="text-align: center; margin-bottom: 30px;">
-                <img src="./logo.png" alt="Gastro Control Pro" style="width: 200px; height: auto; margin-bottom: 20px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 20px;">
+                    <img src="./logo.png" alt="Gastro Control Pro" style="width: 180px; height: auto; display: block;" onerror="this.style.display='none'; this.parentElement.nextElementSibling.style.display='block';">
+                </div>
                 <div style="display: none;">
                     <h1 style="font-size: 32px; font-weight: 900; color: #1e293b; margin: 0;">🍽️ GASTRO CONTROL PRO</h1>
                 </div>
-                <p style="color: #64748b; margin-top: 10px;">Sistema de Gestión Gastronómica</p>
+                <p style="color: #64748b; margin-top: 10px; font-size: 14px;">Sistema de Gestión Gastronómica</p>
             </div>
             
             <form id="firebase-login-form" style="margin-bottom: 20px;">
@@ -27164,8 +27166,14 @@ function mostrarLoginScreen() {
                 </button>
             </form>
             
-            <div style="text-align: center; color: #64748b; font-size: 12px;">
+            <div style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 15px;">
                 <p>Contacta al administrador para obtener acceso</p>
+            </div>
+            
+            <div style="text-align: center; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                <p style="color: #94a3b8; font-size: 11px; margin: 0;">
+                    Desarrollado por <strong style="color: #64748b;">Leider Tisnado Mego</strong>
+                </p>
             </div>
         </div>
     `;
