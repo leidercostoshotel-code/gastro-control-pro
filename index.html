@@ -5284,6 +5284,9 @@ function deleteMaterial(sku) {
     }
     
     document.getElementById('table-materials').innerHTML = filtered.map(m => {
+        // Asegurar que todos los campos numéricos existan
+          m.precio = m.precio || 0;
+          m.factor = m.factor || 1;
         // Obtener stock actual en unidad de costo (interno)
         const stockEnUnidadCosto = window.db.inventario[m.sku] || 0;
         // Convertir a unidad de compra (para mostrar)
@@ -5321,10 +5324,10 @@ function deleteMaterial(sku) {
             <td class="p-4 text-slate-600 font-medium">${m.uCosto}</td>
             <td class="p-4 font-bold text-blue-600">${m.factor}</td>
             <td class="p-4">
-                <span class="font-bold text-emerald-600">S/. ${m.precio.toFixed(2)}</span>
+                <span class="font-bold text-emerald-600">S/. ${(m.precio || 0).toFixed(2)}</span>
             </td>
             <td class="p-4">
-                <span class="font-bold ${colorStock}">${stockEnUnidadCompra.toFixed(2)} ${m.uCompra} ${iconoStock}</span>
+                <span class="font-bold ${colorStock}">${(stockEnUnidadCompra || 0).toFixed(2)} ${m.uCompra} ${iconoStock}</span>
             </td>
             <td class="text-right p-4">
                 <div class="flex gap-2 justify-end acciones-material">
