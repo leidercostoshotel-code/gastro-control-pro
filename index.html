@@ -4527,6 +4527,14 @@ window.onload = async () => {
                     console.log('ℹ️ localStorage lleno, usando solo IndexedDB');
                 }
                 
+                // SINCRONIZAR CON FIREBASE (si el usuario está autenticado)
+                if (typeof guardarDatos === 'function' && currentUser) {
+                    console.log('☁️ Sincronizando cambios con Firebase...');
+                    guardarDatos().catch(error => {
+                        console.error('⚠️ Error sincronizando con Firebase:', error);
+                    });
+                }
+                
                 updateDropdowns();
             } catch (error) {
                 console.error('❌ Error al guardar:', error);
@@ -16763,6 +16771,20 @@ async function iniciarSesionInteligente() {
                 console.log('✅ MANAGER ENCONTRADO - Acceso especial con hash verificado');
                 usuarioActual = manager;
                 document.getElementById('pantalla-login').style.display = 'none';
+                
+                // CARGAR DATOS DESDE FIREBASE
+                if (typeof cargarTodosDatos === 'function' && typeof firestore !== 'undefined') {
+                    try {
+                        console.log('☁️ Intentando cargar datos desde Firebase...');
+                        if (!currentUser && ORGANIZATION_ID) {
+                            currentUser = { email: 'local-user' };
+                        }
+                        await cargarTodosDatos();
+                    } catch (error) {
+                        console.log('⚠️ Firebase no disponible, usando datos locales');
+                    }
+                }
+                
                 setTimeout(() => { inicializarTicker(); }, 100);
                 mostrarSeccionPorRol(manager.rol);
                 
@@ -16790,6 +16812,19 @@ async function iniciarSesionInteligente() {
             
             usuarioActual = mozo;
             document.getElementById('pantalla-login').style.display = 'none';
+            
+            // CARGAR DATOS DESDE FIREBASE
+            if (typeof cargarTodosDatos === 'function' && typeof firestore !== 'undefined') {
+                try {
+                    console.log('☁️ Intentando cargar datos desde Firebase...');
+                    if (!currentUser && ORGANIZATION_ID) {
+                        currentUser = { email: 'local-user' };
+                    }
+                    await cargarTodosDatos();
+                } catch (error) {
+                    console.log('⚠️ Firebase no disponible, usando datos locales');
+                }
+            }
             
             // Inicializar ticker inmediatamente
             setTimeout(() => {
@@ -16832,6 +16867,20 @@ async function iniciarSesionInteligente() {
     console.log('✅ Login exitoso:', user.nombre);
     usuarioActual = user;
     document.getElementById('pantalla-login').style.display = 'none';
+    
+    // CARGAR DATOS DESDE FIREBASE (si existe la función y firestore está configurado)
+    if (typeof cargarTodosDatos === 'function' && typeof firestore !== 'undefined') {
+        try {
+            console.log('☁️ Intentando cargar datos desde Firebase...');
+            // Simular currentUser temporalmente si no existe
+            if (!currentUser && ORGANIZATION_ID) {
+                currentUser = { email: 'local-user' };
+            }
+            await cargarTodosDatos();
+        } catch (error) {
+            console.log('⚠️ Firebase no disponible, usando datos locales');
+        }
+    }
     
     // Inicializar ticker inmediatamente
     setTimeout(() => {
@@ -26246,8 +26295,8 @@ function mostrarSync(tipo = 'loading') {
 }
 
 async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
-    if (!currentUser) {
-        console.warn('⚠️ Usuario no autenticado');
+    if (!ORGANIZATION_ID || typeof firestore === 'undefined') {
+        console.warn('⚠️ Firebase no configurado');
         return false;
     }
     
@@ -26414,8 +26463,8 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
 }
 
 async function cargarDesdeFirestore(coleccion) {
-    if (!currentUser) {
-        console.warn('⚠️ Usuario no autenticado');
+    if (!currentUser && !ORGANIZATION_ID) {
+        console.warn('⚠️ Firebase no configurado');
         return null;
     }
     
@@ -26773,7 +26822,10 @@ window.saveCollection = async function(coleccion) {
 };
 
 async function cargarTodosDatos() {
-    if (!currentUser) return;
+    if (!ORGANIZATION_ID || typeof firestore === 'undefined') {
+        console.warn('⚠️ Firebase no configurado');
+        return;
+    }
     
     console.log('📥 Cargando datos desde Firestore...');
     mostrarSync('loading');
