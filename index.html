@@ -26877,14 +26877,6 @@ function iniciarListenerIndividual(coleccion) {
                 
                 const datosActuales = window.db[coleccion] || [];
                 
-                // Protección: no sobrescribir si Firebase tiene menos datos
-                if (Array.isArray(datosActuales) && Array.isArray(datos)) {
-                    if (datos.length < datosActuales.length) {
-                        console.warn(`⚠️ Firebase tiene menos datos, ignorando`);
-                        return;
-                    }
-                }
-                
                 // Solo actualizar si hay cambios
                 const hayDiferencias = JSON.stringify(datosActuales) !== JSON.stringify(datos);
                 
@@ -26902,7 +26894,6 @@ function iniciarListenerIndividual(coleccion) {
     unsubscribeFunctions[coleccion] = unsubscribe;
     console.log(`✅ Listener de ${coleccion} reconectado correctamente`);
 }
-
 function actualizarInterfazSegunColeccion(coleccion) {
     try {
         // Dar tiempo a que las funciones se carguen
