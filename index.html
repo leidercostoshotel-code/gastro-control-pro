@@ -5076,6 +5076,9 @@ lastExplosion.items.forEach(item => {
 });
 
     save();
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('inventario');
+    }
     lastExplosion = null;
     document.getElementById('mrp-result').innerHTML = `
         <div class="text-center p-10 bg-green-50 rounded-2xl border-2 border-green-200">
@@ -5125,8 +5128,8 @@ lastExplosion.items.forEach(item => {
     }
     
     // Guardar solo materiales en Firestore
-    if (typeof saveCollection === 'function') {
-        saveCollection('materiales');
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('materiales');
     } else {
         save();
     }
@@ -5153,6 +5156,9 @@ function deleteMaterial(sku) {
     if(confirm("¿Estás seguro de que deseas eliminar este material?")) {
         window.db.materiales = window.db.materiales.filter(m => m.sku !== sku);
         save();
+        if (typeof window.saveCollection === 'function') {
+            window.saveCollection('materiales');
+        }
         renderMaterials();
         if(typeof updateDropdowns === 'function') updateDropdowns();
     }
@@ -5650,10 +5656,10 @@ function procesarExcelPegado() {
     clearRBForm();
     
     // Guardar ambas colecciones (recetasBase y materiales)
-    if (typeof saveCollection === 'function') {
+    if (typeof window.saveCollection === 'function') {
         Promise.all([
-            saveCollection('recetasBase'),
-            saveCollection('materiales')
+            window.saveCollection('recetasBase'),
+            window.saveCollection('materiales')
         ]);
     } else {
         save();
@@ -5952,8 +5958,8 @@ function mostrarInfoRecetaBase(sku) {
             clearPlatoForm();
             
             console.log('15. Guardando plato en Firestore...');
-            if (typeof saveCollection === 'function') {
-                saveCollection('platos');
+            if (typeof window.saveCollection === 'function') {
+                window.saveCollection('platos');
             } else {
                 save();
             }
@@ -6376,6 +6382,9 @@ lastExplosion.items.forEach(item => {
             const valorEnUnidadCosto = valorEnUnidadCompra * factor;
             window.db.inventario[sku] = valorEnUnidadCosto;
             save();
+            if (typeof window.saveCollection === 'function') {
+                window.saveCollection('inventario');
+            }
             renderStock();
         }
         
@@ -6420,6 +6429,11 @@ lastExplosion.items.forEach(item => {
             
             // Guardar en localStorage
             save();
+            
+            // Guardar en Firestore
+            if (typeof window.saveCollection === 'function') {
+                window.saveCollection('inventario');
+            }
             
             // Desactivar modo ajuste
             modoAjusteInventario = false;
@@ -6614,6 +6628,9 @@ lastExplosion.items.forEach(item => {
             if(confirm("⚠️ ¿Estás seguro de eliminar este elemento?")) {
                 db[list] = db[list].filter(i => i[key] !== value);
                 save();
+                if (typeof window.saveCollection === 'function') {
+                    window.saveCollection(list);
+                }
                 callback();
                 
                 // Actualizar tabs de categorías si se eliminó un plato
@@ -8856,6 +8873,9 @@ function exportarVistaPreliminarSemanalPDF() {
     lastExplosionSemanal = null;
     window.db.planSemanal = {};
     save();
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('inventario');
+    }
     
     renderPlanSemanal();
     alert("✅ PDF semanal generado y planificación reiniciada.");
@@ -10626,6 +10646,9 @@ function guardarDocumento() {
     });
     
     save();
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('inventario');
+    }
     limpiarFormularioDocumento();
     renderHistorialDocumentos();
     
@@ -16216,6 +16239,9 @@ function guardarProveedor() {
     
     limpiarFormProveedor();
     save();
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('proveedores');
+    }
     renderProveedores();
     alert('✅ Proveedor guardado correctamente');
 }
@@ -16232,6 +16258,9 @@ function eliminarProveedor(id) {
     if (confirm('¿Eliminar este proveedor?')) {
         window.db.proveedores = window.db.proveedores.filter(p => p.id !== id);
         save();
+        if (typeof window.saveCollection === 'function') {
+            window.saveCollection('proveedores');
+        }
         renderProveedores();
     }
 }
@@ -18866,6 +18895,9 @@ function enviarACocina() {
     }
     
     save();
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('inventario');
+    }
     renderPedidoActual();
     actualizarIndicadoresMesas();
     
@@ -19219,6 +19251,9 @@ function confirmarCobro() {
     window.descuentoTemporal = null;
     
     save();
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('inventario');
+    }
     console.log('Cambios guardados en localStorage');
     console.log('💰 Venta guardada: S/.', venta.total.toFixed(2));
     
@@ -23435,8 +23470,8 @@ const evento = {
     window.db.eventos.push(evento);
     
     // Guardar solo eventos en Firestore
-    if (typeof saveCollection === 'function') {
-        saveCollection('eventos');
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('eventos');
     } else {
         save();
     }
@@ -23669,6 +23704,9 @@ function eliminarEvento(index) {
     if (confirm(`¿Eliminar el evento "${evento.nombre}"?`)) {
         window.db.eventos.splice(index, 1);
         save();
+        if (typeof window.saveCollection === 'function') {
+            window.saveCollection('eventos');
+        }
         renderEventosGuardados();
         console.log('✅ Evento eliminado');
     }
@@ -26969,6 +27007,14 @@ async function cargarTodosDatos() {
         if (typeof actualizarDashboard === 'function') actualizarDashboard();
         if (typeof updateFamiliasDropdown === 'function') updateFamiliasDropdown();
         if (typeof renderFamilias === 'function') renderFamilias();
+        
+        // AUTOGUARDADO PERIÓDICO: Guardar datos cada 30 segundos
+        setInterval(() => {
+            if (currentUser && window.db) {
+                console.log('🔄 Autoguardado periódico...');
+                window.guardarDatos();
+            }
+        }, 30000);
         
     } catch (error) {
         console.error('❌ Error cargando datos:', error);
