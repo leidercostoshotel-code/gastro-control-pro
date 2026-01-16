@@ -2200,6 +2200,9 @@ window.solicitarImportarJSON = function() {
                         <button onclick="limpiarBusquedaMateriales()" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-300 btn-action">
                             ❌ LIMPIAR
                         </button>
+                        <button onclick="limpiarDuplicados()" class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-xl text-xs font-bold btn-action hover:shadow-lg">
+                            🧹 ELIMINAR DUPLICADOS
+                        </button>
                         <button id="btn-exportar-materiales" onclick="exportarMaterialesExcel()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl text-xs font-bold btn-action hover:shadow-lg">
                             📊 EXPORTAR A EXCEL
                         </button>
@@ -5117,6 +5120,20 @@ lastExplosion.items.forEach(item => {
     
     const idx = window.db.materiales.findIndex(m => m.sku === data.sku);
     
+    // VALIDACIÓN: Verificar si existe material con mismo nombre y familia (pero diferente SKU)
+    if (!skuId) { // Solo validar cuando se crea nuevo material
+        const duplicadoNombre = window.db.materiales.find(m => 
+            m.nombre === data.nombre && 
+            m.familia === data.familia && 
+            m.sku !== data.sku
+        );
+        
+        if (duplicadoNombre) {
+            alert(`⚠️ Ya existe un material con ese nombre y familia:\n\nNombre: ${duplicadoNombre.nombre}\nFamilia: ${duplicadoNombre.familia}\nCódigo: ${duplicadoNombre.sku}\n\n¿Deseas editarlo en lugar de crear uno nuevo?`);
+            return;
+        }
+    }
+    
     if(idx > -1) {
         // Actualizar material existente
         window.db.materiales[idx] = data;
@@ -5149,6 +5166,78 @@ lastExplosion.items.forEach(item => {
     // Mostrar mensaje de éxito
     alert('✅ Material guardado exitosamente');
     document.getElementById('m-nombre').focus();
+}
+
+function limpiarDuplicados() {
+    if (!window.db.materiales || window.db.materiales.length === 0) {
+        alert('📋 No hay materiales en la base de datos');
+        return;
+    }
+    
+    // Agrupar por SKU
+    const materialesPorSKU = {};
+    const skusDuplicados = [];
+    
+    window.db.materiales.forEach(m => {
+        if (!materialesPorSKU[m.sku]) {
+            materialesPorSKU[m.sku] = [];
+        }
+        materialesPorSKU[m.sku].push(m);
+    });
+    
+    // Encontrar SKUs duplicados
+    for (const sku in materialesPorSKU) {
+        if (materialesPorSKU[sku].length > 1) {
+            skusDuplicados.push({
+                sku: sku,
+                nombre: materialesPorSKU[sku][0].nombre,
+                cantidad: materialesPorSKU[sku].length
+            });
+        }
+    }
+    
+    if (skusDuplicados.length === 0) {
+        alert('✅ No se encontraron duplicados\n\nTodos los materiales tienen SKU único.');
+        return;
+    }
+    
+    // Mostrar resumen de duplicados
+    let mensaje = `🔍 Se encontraron ${skusDuplicados.length} materiales duplicados:\n\n`;
+    skusDuplicados.forEach(d => {
+        mensaje += `• ${d.nombre} (${d.sku}) - ${d.cantidad} copias\n`;
+    });
+    mensaje += `\n¿Deseas eliminar los duplicados y dejar solo UNA copia de cada material?`;
+    
+    if (!confirm(mensaje)) {
+        return;
+    }
+    
+    // Eliminar duplicados - mantener solo el primero de cada SKU
+    const materialesLimpios = [];
+    const skusVistos = new Set();
+    
+    window.db.materiales.forEach(m => {
+        if (!skusVistos.has(m.sku)) {
+            materialesLimpios.push(m);
+            skusVistos.add(m.sku);
+        }
+    });
+    
+    const eliminados = window.db.materiales.length - materialesLimpios.length;
+    
+    // Actualizar base de datos
+    window.db.materiales = materialesLimpios;
+    
+    // Guardar cambios
+    save();
+    if (typeof window.saveCollection === 'function') {
+        window.saveCollection('materiales');
+    }
+    
+    // Actualizar vista
+    renderMaterials();
+    
+    alert(`✅ Limpieza completada\n\n${eliminados} materiales duplicados fueron eliminados.\n\nAhora tienes ${materialesLimpios.length} materiales únicos.`);
 }
 
 // --- ESTA ES LA FUNCIÓN QUE TE FALTABA PARA QUE EL BOTÓN ELIMINAR FUNCIONE ---
