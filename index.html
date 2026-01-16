@@ -27136,7 +27136,10 @@ function mostrarLoginScreen() {
     loginDiv.innerHTML = `
         <div style="background: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 400px; width: 90%;">
             <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="font-size: 32px; font-weight: 900; color: #1e293b; margin: 0;">🍽️ GASTRO CONTROL PRO</h1>
+                <img src="./logo.png" alt="Gastro Control Pro" style="width: 200px; height: auto; margin-bottom: 20px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <div style="display: none;">
+                    <h1 style="font-size: 32px; font-weight: 900; color: #1e293b; margin: 0;">🍽️ GASTRO CONTROL PRO</h1>
+                </div>
                 <p style="color: #64748b; margin-top: 10px;">Sistema de Gestión Gastronómica</p>
             </div>
             
