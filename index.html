@@ -26028,26 +26028,86 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
         
         const batch = firestore.batch();
         
+        // NUEVO: En lugar de borrar todo, obtener los IDs existentes
         const snapshot = await basePath.get();
-        snapshot.forEach(doc => batch.delete(doc.ref));
+        const existingIds = new Set();
+        const existingDocs = {};
+        
+        snapshot.forEach(doc => {
+            existingIds.add(doc.id);
+            existingDocs[doc.id] = doc;
+        });
         
         if (Array.isArray(datos)) {
+            // Crear un Set de SKUs que vienen en los datos
+            const datosSkus = new Set();
+            
             datos.forEach(item => {
-                const docRef = basePath.doc();
-                batch.set(docRef, {
-                    ...item,
-                    _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    _updatedBy: currentUser.email
-                });
+                if (item.sku) {
+                    datosSkus.add(item.sku);
+                    
+                    // Buscar si ya existe un documento con este SKU
+                    let docId = null;
+                    snapshot.forEach(doc => {
+                        if (doc.data().sku === item.sku) {
+                            docId = doc.id;
+                        }
+                    });
+                    
+                    if (docId) {
+                        // Actualizar existente
+                        batch.update(basePath.doc(docId), {
+                            ...item,
+                            _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            _updatedBy: currentUser.email
+                        });
+                    } else {
+                        // Crear nuevo
+                        const docRef = basePath.doc();
+                        batch.set(docRef, {
+                            ...item,
+                            _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            _updatedBy: currentUser.email
+                        });
+                    }
+                }
             });
+            
+            // Borrar solo los que ya no existen en datos
+            snapshot.forEach(doc => {
+                const docData = doc.data();
+                if (docData.sku && !datosSkus.has(docData.sku)) {
+                    batch.delete(doc.ref);
+                }
+            });
+            
         } else {
+            // Para objetos (como inventario)
             for (const [key, value] of Object.entries(datos)) {
-                batch.set(basePath.doc(key), {
-                    ...value,
-                    _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    _updatedBy: currentUser.email
-                });
+                const docRef = basePath.doc(key);
+                const exists = existingIds.has(key);
+                
+                if (exists) {
+                    batch.update(docRef, {
+                        ...value,
+                        _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        _updatedBy: currentUser.email
+                    });
+                } else {
+                    batch.set(docRef, {
+                        ...value,
+                        _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        _updatedBy: currentUser.email
+                    });
+                }
             }
+            
+            // Borrar keys que ya no existen
+            existingIds.forEach(id => {
+                if (!datos[id]) {
+                    batch.delete(basePath.doc(id));
+                }
+            });
         }
         
         await batch.commit();
