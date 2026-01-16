@@ -1019,14 +1019,14 @@ async function hashPassword(password) {
 // Ejemplo: await generarHash('2026')
 window.generarHash = async function(password) {
     const hash = await hashPassword(password);
-    console.log('🔐 Hash generado para "' + password + '":');
+    console.log('🔐 Hash generado para: ' + password);
     console.log(hash);
     console.log('\n📝 Copia este hash y reemplázalo en el código (líneas 845-846)');
     return hash;
 };
 
 console.log('🛡️ Sistema de contraseñas con hash MD5 inicializado');
-console.log('ℹ️ Para generar un nuevo hash, usa en la consola: await generarHash("tu_contraseña")');
+console.log('Para generar un nuevo hash, usa: await generarHash("tu_password")');
 // ========================================
 
 // Funciones globales definidas INMEDIATAMENTE para onclick
@@ -4527,18 +4527,43 @@ window.onload = async () => {
                     console.log('ℹ️ localStorage lleno, usando solo IndexedDB');
                 }
                 
-                // SINCRONIZAR CON FIREBASE (si el usuario está autenticado)
-                if (typeof guardarDatos === 'function' && currentUser) {
-                    console.log('☁️ Sincronizando cambios con Firebase...');
-                    guardarDatos().catch(error => {
-                        console.error('⚠️ Error sincronizando con Firebase:', error);
-                    });
+                // SINCRONIZAR CON FIREBASE (cada colección)
+                if (ORGANIZATION_ID && typeof firestore !== 'undefined') {
+                    console.log('☁️ Sincronizando con Firebase...');
+                    
+                    // Guardar cada colección si tiene datos
+                    const colecciones = ['materiales', 'recetasBase', 'platos', 'eventos', 'proveedores', 'inventario', 'usuarios'];
+                    
+                    for (const col of colecciones) {
+                        if (window.db[col]) {
+                            await guardarEnFirestore(col, window.db[col], false);
+                        }
+                    }
+                    
+                    console.log('✅ Sincronización completada');
                 }
                 
                 updateDropdowns();
             } catch (error) {
                 console.error('❌ Error al guardar:', error);
                 alert('⚠️ Error al guardar los datos. Intenta exportar un backup.');
+            }
+        }
+        
+        // Función para guardar una colección específica en Firebase
+        async function saveCollection(coleccion) {
+            try {
+                // Guardar localmente primero
+                await saveToIndexedDB('gastro_control_pro', { ...db });
+                
+                // Luego sincronizar solo esa colección con Firebase
+                if (ORGANIZATION_ID && typeof firestore !== 'undefined' && window.db[coleccion]) {
+                    console.log(`☁️ Guardando ${coleccion} en Firebase...`);
+                    await guardarEnFirestore(coleccion, window.db[coleccion], true);
+                    console.log(`✅ ${coleccion} guardado en Firebase`);
+                }
+            } catch (error) {
+                console.error(`❌ Error guardando ${coleccion}:`, error);
             }
         }
 
@@ -7487,8 +7512,18 @@ function renderPlatos() {
                         
                         // 🔥 NUEVO: Sincronizar con Firebase después de importar
                         console.log('🔄 Sincronizando datos con Firebase...');
-                        if (typeof guardarDatos === 'function') {
-                            guardarDatos().then(() => {
+                        if (ORGANIZATION_ID && typeof firestore !== 'undefined') {
+                            // Guardar cada colección en Firebase
+                            const colecciones = ['materiales', 'recetasBase', 'platos', 'eventos', 'proveedores', 'inventario', 'usuarios'];
+                            
+                            let promises = [];
+                            for (const col of colecciones) {
+                                if (window.db[col]) {
+                                    promises.push(guardarEnFirestore(col, window.db[col], false));
+                                }
+                            }
+                            
+                            Promise.all(promises).then(() => {
                                 console.log('✅ Datos sincronizados con Firebase correctamente');
                                 
                                 alert('✅ Importación exitosa!\n\n' + 
@@ -7510,6 +7545,9 @@ function renderPlatos() {
                                       'La página se recargará.');
                                 
                                 setTimeout(function() {
+                                    location.reload();
+                                }, 1000);
+                            });
                                     location.reload();
                                 }, 1000);
                             });
@@ -16241,14 +16279,14 @@ var accionPendienteClaveAdmin = null; // Guarda la función a ejecutar después 
  * @param {string} mensaje - Mensaje personalizado (opcional)
  */
 function solicitarClaveAdmin(accion, mensaje) {
-    // Si ya es admin, ejecutar directamente
-    if (usuarioActual && usuarioActual.rol === 'admin') {
-        console.log('✅ Usuario es admin, ejecutando acción directamente');
+    // Si es manager o admin, ejecutar directamente SIN pedir clave
+    if (usuarioActual && (usuarioActual.id === 'manager' || usuarioActual.rol === 'admin')) {
+        console.log('✅ Usuario es manager/admin, ejecutando acción directamente sin pedir clave');
         accion();
         return;
     }
     
-    // Guardar acción pendiente
+    // Para otros roles, pedir la clave del admin que está logueado
     accionPendienteClaveAdmin = accion;
     
     // Mostrar modal
@@ -16273,12 +16311,9 @@ function solicitarClaveAdmin(accion, mensaje) {
         input.focus();
     }, 100);
     
-    console.log('🔐 Solicitando clave de admin para función protegida');
+    console.log('🔐 Solicitando clave del administrador actual para función protegida');
 }
 
-/**
- * Valida la clave ingresada
- */
 /**
  * Abre el modal de clave de administrador
  * @param {string} tituloAccion - Descripción de la acción que se va a realizar
@@ -16324,10 +16359,10 @@ async function validarClaveAdmin() {
     
     // Hashear la contraseña ingresada
     const claveHash = await hashPassword(claveIngresada);
-    console.log('🔍 Verificando contraseña...');
+    console.log('🔍 Verificando contraseña del admin actual...');
     
-    // Buscar admin en la base de datos
-    var admin = window.db.usuarios ? window.db.usuarios.find(u => u.rol === 'admin') : null;
+    // Buscar admin en la base de datos (el que está guardado, no el hardcodeado)
+    var admin = window.db.usuarios ? window.db.usuarios.find(u => u.rol === 'admin' && !u.oculto) : null;
     
     if (!admin) {
         console.error('❌ No se encontró usuario admin en la base de datos');
@@ -16337,14 +16372,14 @@ async function validarClaveAdmin() {
         return;
     }
     
-    // Validar clave - comparar con hash
-    // Primero intentar con PASSWORD_ADMIN_HASH (sistema), luego con admin.password (BD)
-    const esValido = (claveHash === PASSWORD_ADMIN_HASH) || 
-                     (claveHash === admin.password) || 
-                     (claveIngresada === admin.password); // Compatibilidad con contraseñas antiguas sin hash
+    console.log('🔍 Comparando con contraseña del admin:', admin.usuario);
+    
+    // Validar clave - comparar con la contraseña del admin en la BD
+    // Soportar tanto hash como texto plano (compatibilidad)
+    const esValido = (claveHash === admin.password) || (claveIngresada === admin.password);
     
     if (esValido) {
-        console.log('✅ Contraseña correcta, ejecutando acción');
+        console.log('✅ Contraseña correcta del admin actual');
         
         // Cerrar modal
         cerrarModalClaveAdmin();
@@ -26106,6 +26141,9 @@ function tieneAccesoASeccion(seccion) {
 }
 
 function tieneAccesoAColeccion(coleccion) {
+    // Si es usuario local (con PIN), dar acceso completo
+    if (!currentUser || currentUser.email === 'local-user') return true;
+    
     if (!window.currentUserRole) return false;
     const rol = window.currentUserRole.rol;
     
@@ -26300,13 +26338,18 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
         return false;
     }
     
-    if (!tienePermiso('editar') && !tienePermiso('crear')) {
-        console.warn('⚠️ Sin permisos de escritura para:', coleccion);
-        mostrarSync('error');
-        setTimeout(() => {
-            alert(`⚠️ No tienes permiso para modificar: ${coleccion}`);
-        }, 100);
-        return false;
+    // Si es usuario local (con PIN), omitir verificación de permisos detallada
+    const esUsuarioLocal = !currentUser || currentUser.email === 'local-user';
+    
+    if (!esUsuarioLocal) {
+        if (!tienePermiso('editar') && !tienePermiso('crear')) {
+            console.warn('⚠️ Sin permisos de escritura para:', coleccion);
+            mostrarSync('error');
+            setTimeout(() => {
+                alert(`⚠️ No tienes permiso para modificar: ${coleccion}`);
+            }, 100);
+            return false;
+        }
     }
     
     // MARCAR QUE HAY UN GUARDADO EN CURSO
