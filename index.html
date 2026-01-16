@@ -27214,6 +27214,31 @@ function iniciarAuthObserver() {
                     window.currentUserRole = rolDoc.data();
                     console.log('👤 Rol:', window.currentUserRole.rol);
                     
+                    // VERIFICAR SESIÓN ÚNICA: Solo una sesión activa por usuario
+                    const sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+                    const sessionRef = firestore.collection('activeSessions').doc(user.email);
+                    
+                    // Guardar sesión actual
+                    await sessionRef.set({
+                        sessionId: sessionId,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        email: user.email
+                    });
+                    
+                    // Escuchar cambios en la sesión (si otro dispositivo inicia sesión)
+                    const unsubscribeSession = sessionRef.onSnapshot(async (snapshot) => {
+                        if (snapshot.exists) {
+                            const data = snapshot.data();
+                            if (data.sessionId !== sessionId) {
+                                alert('⚠️ Tu sesión ha sido cerrada porque iniciaste sesión en otro dispositivo.');
+                                await auth.signOut();
+                            }
+                        }
+                    });
+                    
+                    // Guardar función para limpiar listener
+                    window.unsubscribeSession = unsubscribeSession;
+                    
                     // SINCRONIZAR window.usuarioActual con Firebase para compatibilidad con sistema legacy
                     window.usuarioActual = {
                         id: window.currentUserRole.rol === 'manager' ? 'manager' : user.email,
@@ -27243,6 +27268,9 @@ function iniciarAuthObserver() {
                     
                     iniciarSincronizacionTiempoReal();
                     
+                    // INICIAR DETECTOR DE INACTIVIDAD
+                    iniciarDetectorInactividad();
+                    
                     if (typeof aplicarPermisosUI === 'function') {
                         aplicarPermisosUI();
                     }
@@ -27261,6 +27289,18 @@ function iniciarAuthObserver() {
         } else {
             currentUser = null;
             window.currentUserRole = null;
+            
+            // Limpiar listener de sesión
+            if (window.unsubscribeSession) {
+                window.unsubscribeSession();
+                window.unsubscribeSession = null;
+            }
+            
+            // Limpiar detector de inactividad
+            if (window.inactivityTimer) {
+                clearTimeout(window.inactivityTimer);
+                window.inactivityTimer = null;
+            }
             
             Object.values(unsubscribeFunctions).forEach(unsubscribe => unsubscribe());
             unsubscribeFunctions = {};
@@ -27282,6 +27322,78 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// ========== CERRAR SESIÓN ==========
+async function cerrarSesion() {
+    if (!confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+        return;
+    }
+    
+    try {
+        // Limpiar sesión en Firestore
+        if (currentUser && currentUser.email) {
+            await firestore.collection('activeSessions').doc(currentUser.email).delete();
+            console.log('🗑️ Sesión limpiada de Firestore');
+        }
+        
+        // Limpiar interval de inactividad
+        if (window.inactivityCheckInterval) {
+            clearInterval(window.inactivityCheckInterval);
+            window.inactivityCheckInterval = null;
+        }
+        
+        // Cerrar sesión en Firebase
+        await auth.signOut();
+        console.log('✅ Sesión cerrada correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error al cerrar sesión:', error);
+        alert('Error al cerrar sesión. Recargando página...');
+        location.reload();
+    }
+}
+
+// ========== DETECTOR DE INACTIVIDAD ==========
+function iniciarDetectorInactividad() {
+    const TIEMPO_INACTIVIDAD = 5 * 60 * 1000; // 5 minutos en milisegundos
+    let tiempoUltimaActividad = Date.now();
+    
+    // Resetear timer en cualquier actividad del usuario
+    const resetearTimer = () => {
+        tiempoUltimaActividad = Date.now();
+        console.log('🔄 Actividad detectada - Timer reseteado');
+    };
+    
+    // Eventos que detectan actividad
+    const eventos = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    eventos.forEach(evento => {
+        document.addEventListener(evento, resetearTimer, true);
+    });
+    
+    // Verificar inactividad cada 30 segundos
+    window.inactivityCheckInterval = setInterval(async () => {
+        const tiempoInactivo = Date.now() - tiempoUltimaActividad;
+        
+        if (tiempoInactivo >= TIEMPO_INACTIVIDAD) {
+            console.log('⏰ Tiempo de inactividad excedido - Cerrando sesión...');
+            clearInterval(window.inactivityCheckInterval);
+            
+            // Limpiar sesión en Firestore
+            if (currentUser && currentUser.email) {
+                try {
+                    await firestore.collection('activeSessions').doc(currentUser.email).delete();
+                } catch (error) {
+                    console.error('Error al limpiar sesión:', error);
+                }
+            }
+            
+            alert('⏰ Tu sesión ha expirado por inactividad.\n\nPor favor, inicia sesión nuevamente.');
+            await auth.signOut();
+        }
+    }, 30000); // Verificar cada 30 segundos
+    
+    console.log('✅ Detector de inactividad iniciado (5 minutos)');
+}
 
 console.log('✅ Módulo Firebase con sincronización en tiempo real cargado');
 </script>
