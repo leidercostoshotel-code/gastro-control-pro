@@ -26997,28 +26997,33 @@ window.guardarDatos = async function() {
     try {
         const promesas = [];
         
-        if (window.db.materiales) {
+        // SOLO guardar si hay datos (no guardar arrays vacíos)
+        if (window.db.materiales && window.db.materiales.length > 0) {
             promesas.push(guardarEnFirestore('materiales', window.db.materiales, false));
         }
-        if (window.db.recetasBase) {
+        if (window.db.recetasBase && window.db.recetasBase.length > 0) {
             promesas.push(guardarEnFirestore('recetasBase', window.db.recetasBase, false));
         }
-        if (window.db.platos) {
+        if (window.db.platos && window.db.platos.length > 0) {
             promesas.push(guardarEnFirestore('platos', window.db.platos, false));
         }
-        if (window.db.eventos) {
+        if (window.db.eventos && window.db.eventos.length > 0) {
             promesas.push(guardarEnFirestore('eventos', window.db.eventos, false));
         }
-        if (window.db.proveedores) {
+        if (window.db.proveedores && window.db.proveedores.length > 0) {
             promesas.push(guardarEnFirestore('proveedores', window.db.proveedores, false));
         }
-        if (window.db.inventario) {
+        if (window.db.inventario && Object.keys(window.db.inventario).length > 0) {
             promesas.push(guardarEnFirestore('inventario', window.db.inventario, false));
         }
         
-        await Promise.all(promesas);
+        if (promesas.length > 0) {
+            await Promise.all(promesas);
+            console.log('✅ Todos los datos guardados');
+        } else {
+            console.log('ℹ️ No hay datos para guardar');
+        }
         
-        console.log('✅ Todos los datos guardados');
         mostrarSync('success');
         
     } catch (error) {
@@ -27099,20 +27104,11 @@ async function cargarTodosDatos() {
         if (typeof updateFamiliasDropdown === 'function') updateFamiliasDropdown();
         if (typeof renderFamilias === 'function') renderFamilias();
         
-        // AUTOGUARDADO PERIÓDICO: Guardar datos cada 30 segundos
-        setInterval(() => {
-            if (currentUser && window.db) {
-                console.log('🔄 Autoguardado periódico...');
-                window.guardarDatos();
-            }
-        }, 30000);
-        
     } catch (error) {
         console.error('❌ Error cargando datos:', error);
         mostrarSync('error');
     }
 }
-
 function mostrarLoginScreen() {
     let loginDiv = document.getElementById('firebase-login-screen');
     
