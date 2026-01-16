@@ -1019,14 +1019,14 @@ async function hashPassword(password) {
 // Ejemplo: await generarHash('2026')
 window.generarHash = async function(password) {
     const hash = await hashPassword(password);
-    console.log('🔐 Hash generado para: ' + password);
+    console.log('🔐 Hash generado para "' + password + '":');
     console.log(hash);
     console.log('\n📝 Copia este hash y reemplázalo en el código (líneas 845-846)');
     return hash;
 };
 
-console.log('🛡️ Sistema de contraseñas con hash MD5 inicializado');
-console.log('Para generar un nuevo hash, usa: await generarHash("tu_password")');
+console.log('Sistema de hash MD5 inicializado');
+console.log('Para generar hash: await generarHash("password")');
 // ========================================
 
 // Funciones globales definidas INMEDIATAMENTE para onclick
@@ -1094,12 +1094,14 @@ window.cerrarSesion = function() {
 };
 
 window.exportData = function() {
+    console.log('🔍 Intentando exportar datos JSON. Usuario actual:', window.usuarioActual);
     if (typeof solicitarClaveAdmin === 'function' && typeof exportDataReal === 'function') {
         solicitarClaveAdmin(exportDataReal, '💾 Exportar requiere clave');
     }
 };
 
 window.solicitarImportarJSON = function() {
+    console.log('🔍 Intentando importar datos JSON. Usuario actual:', window.usuarioActual);
     if (typeof solicitarClaveAdmin === 'function') {
         solicitarClaveAdmin(function() {
             const input = document.getElementById('importFile');
@@ -3519,11 +3521,10 @@ window.solicitarImportarJSON = function() {
                     id="input-clave-admin" 
                     class="w-full border-2 border-slate-300 p-4 rounded-xl text-center text-2xl font-bold tracking-widest focus:border-red-500 focus:outline-none" 
                     placeholder="****"
-                    maxlength="4"
                     autocomplete="off"
                     onkeypress="if(event.key==='Enter') validarClaveAdmin()"
                 >
-                <p class="text-xs text-slate-500 mt-2 text-center">Ingresa el PIN del administrador (4 dígitos)</p>
+                <p class="text-xs text-slate-500 mt-2 text-center">Ingresa la clave de administrador</p>
             </div>
             
             <div class="flex gap-3">
@@ -3538,6 +3539,12 @@ window.solicitarImportarJSON = function() {
             <div id="error-clave-admin" class="hidden mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-center">
                 <p class="text-sm font-bold text-red-700">❌ CLAVE INCORRECTA</p>
                 <p class="text-xs text-red-600 mt-1">Intenta nuevamente</p>
+            </div>
+            
+            <!-- DEBUG INFO (temporal) -->
+            <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                <p class="font-bold text-blue-700 mb-1">🔍 Debug Info:</p>
+                <p class="text-blue-600" id="debug-usuario-info">Cargando...</p>
             </div>
         </div>
     </div>
@@ -3689,6 +3696,20 @@ window.db = {
     produccionesRB: [],
     ordenesPendientes: []
 };
+
+var db = window.db;
+
+function garantizarDatos() {
+    if (!window.db) window.db = {};
+    if (!window.db.familias || !window.db.familias.length) window.db.familias = ["AVES", "ABARROTES", "VERDURAS", "FRUTAS", "HUEVOS", "CARNICOS", "BEBIDAS", "LICORES", "VINOS", "PANES", "REC COCINA"];
+    if (!window.db.alergenos || !window.db.alergenos.length) window.db.alergenos = ["GLUTEN", "LÁCTEOS", "HUEVO", "SOJA", "FRUTOS SECOS", "MANÍ", "PESCADO", "MARISCOS", "SULFITOS", "SÉSAMO"];
+    if (!window.db.areas || !window.db.areas.length) window.db.areas = ["LOBBY BAR", "LE CAFE", "ROOM SERVICE", "LA LOCANDA", "BANQUETES", "PISO EJECUTIVO", "LA FONDUE"];
+    if (!window.db.materiales) window.db.materiales = [];
+    if (!window.db.empleados) window.db.empleados = [];
+    if (!window.db.servicios) window.db.servicios = [];
+    db = window.db;
+}
+garantizarDatos();
 
 // ========== INDEXEDDB - SISTEMA DE ALMACENAMIENTO MEJORADO ==========
 // Capacidad: 50MB - 2GB (vs 5-10MB de localStorage)
@@ -4035,8 +4056,8 @@ function inicializarTicker() {
     
     // Obtener nombre del usuario actual
     let nombreUsuario = 'Invitado';
-    if (typeof usuarioActual !== 'undefined' && usuarioActual && usuarioActual.nombre) {
-        nombreUsuario = usuarioActual.nombre;
+    if (typeof window.usuarioActual !== 'undefined' && window.usuarioActual && window.usuarioActual.nombre) {
+        nombreUsuario = window.usuarioActual.nombre;
     } else {
         const sesionGuardada = null; // localStorage.getItem('gastro_sesion_activa');
         if (sesionGuardada) {
@@ -4412,6 +4433,7 @@ window.onload = async () => {
         });
     }
     
+    garantizarDatos();
     renderAll();
     renderPlanSemanal();
     updateFamiliasDropdown();
@@ -4429,7 +4451,8 @@ window.onload = async () => {
     const sesionRestaurada = restaurarSesion();
     if (sesionRestaurada) {
         console.log('🔄 Restaurando sesión automáticamente...');
-        usuarioActual = sesionRestaurada;
+        window.usuarioActual = sesionRestaurada;
+        console.log('✅ window.usuarioActual asignado:', window.usuarioActual);
         document.getElementById('pantalla-login').classList.add('hidden');
         
         // Todos van al módulo administrativo (POS eliminado)
@@ -5225,214 +5248,215 @@ function deleteMaterial(sku) {
     }).join('');
     
     // Aplicar restricciones de rol después de renderizar
-    if (usuarioActual && usuarioActual.rol) {
-        aplicarRestriccionesRol(usuarioActual.rol, true);
+    if (window.usuarioActual && window.usuarioActual.rol) {
+        aplicarRestriccionesRol(window.usuarioActual.rol, true);
     }
 }
 
-        // ========== EXPORTAR MATERIALES A EXCEL ==========
-        function exportarMaterialesExcel() {
-            // 🔐 VALIDACIÓN DE CLAVE ADMIN
-            solicitarClaveAdmin(function() {
-                exportarMaterialesExcelReal();
-            }, '📤 EXPORTAR materiales a Excel requiere clave de administrador');
+// ========== EXPORTAR MATERIALES A EXCEL ==========
+function exportarMaterialesExcel() {
+    console.log('🔍 Intentando exportar materiales. Usuario actual:', window.usuarioActual);
+    // 🔐 VALIDACIÓN DE CLAVE ADMIN
+    solicitarClaveAdmin(function() {
+        exportarMaterialesExcelReal();
+    }, '📤 EXPORTAR materiales a Excel requiere clave de administrador');
+}
+
+function exportarMaterialesExcelReal() {
+    if (!window.db.materiales || window.db.materiales.length === 0) {
+        alert('⚠️ No hay materiales para exportar');
+        return;
+    }
+    
+    // Colores por familia (RGB en formato hex)
+    const coloresFamilia = {
+        'AVES': 'FFE6CC',           // Naranja claro
+        'ABARROTES': 'FFF2CC',      // Amarillo claro
+        'VERDURAS': 'D9EAD3',       // Verde claro
+        'FRUTAS': 'FCE5CD',         // Durazno
+        'HUEVOS': 'FFF9C4',         // Amarillo muy claro
+        'CARNICOS': 'F4CCCC',       // Rojo claro
+        'BEBIDAS': 'CFE2F3',        // Azul claro
+        'LICORES': 'D9D2E9',        // Morado claro
+        'VINOS': 'E8DAEF',          // Lavanda
+        'PANES': 'F9E79F',          // Amarillo trigo
+        'REC COCINA': 'E8F5E9',     // Verde menta
+        'LACTEOS': 'FFF8DC',        // Crema
+        'PESCADOS': 'B3E5FC',       // Azul agua
+        'MARISCOS': 'E1F5FE',       // Azul cielo
+        'ESPECIAS': 'FFCCBC',       // Coral
+        'ACEITES': 'FFF9C4'         // Amarillo oro
+    };
+    
+    // Ordenar materiales por familia y luego por nombre
+    const materialesOrdenados = [...db.materiales].sort((a, b) => {
+        const familiaA = a.familia || 'ZZZ';
+        const familiaB = b.familia || 'ZZZ';
+        if (familiaA !== familiaB) {
+            return familiaA.localeCompare(familiaB);
         }
+        return a.nombre.localeCompare(b.nombre);
+    });
+    
+    // Crear datos para Excel
+    const datos = [];
+    
+    // Encabezado
+    datos.push(['CÓDIGO', 'NOMBRE DEL MATERIAL', 'FAMILIA', 'PRECIO S/.', 'FACTOR', 'U. COSTO', 'U. COMPRA', 'STOCK']);
+    
+    // Agregar materiales
+    materialesOrdenados.forEach(m => {
+        const stockEnUnidadCosto = window.db.inventario[m.sku] || 0;
+        const stockEnUnidadCompra = stockEnUnidadCosto / m.factor;
         
-        function exportarMaterialesExcelReal() {
-            if (!window.db.materiales || window.db.materiales.length === 0) {
-                alert('⚠️ No hay materiales para exportar');
-                return;
+        datos.push([
+            m.sku,
+            m.nombre,
+            m.familia || 'SIN FAMILIA',
+            m.precio,
+            m.factor,
+            m.uCosto,
+            m.uCompra,
+            stockEnUnidadCompra
+        ]);
+    });
+    
+    // Crear workbook y worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(datos);
+    
+    // Configurar anchos de columna
+    ws['!cols'] = [
+        { wch: 12 },  // CÓDIGO
+        { wch: 35 },  // NOMBRE
+        { wch: 18 },  // FAMILIA
+        { wch: 12 },  // PRECIO
+        { wch: 10 },  // FACTOR
+        { wch: 12 },  // U. COSTO
+        { wch: 12 },  // U. COMPRA
+        { wch: 12 }   // STOCK
+    ];
+    
+    // Aplicar estilos
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    
+    // Estilo del encabezado
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_col(C) + "1";
+        if (!ws[address]) continue;
+        
+        ws[address].s = {
+            font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+            fill: { fgColor: { rgb: "1E3A8A" } }, // Azul oscuro
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } }
             }
+        };
+    }
+    
+    // Estilo de las filas de datos
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        const material = materialesOrdenados[R - 1];
+        const familia = material.familia || 'SIN FAMILIA';
+        const colorFamilia = coloresFamilia[familia] || 'FFFFFF';
+        
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const address = XLSX.utils.encode_col(C) + (R + 1);
+            if (!ws[address]) continue;
             
-            // Colores por familia (RGB en formato hex)
-            const coloresFamilia = {
-                'AVES': 'FFE6CC',           // Naranja claro
-                'ABARROTES': 'FFF2CC',      // Amarillo claro
-                'VERDURAS': 'D9EAD3',       // Verde claro
-                'FRUTAS': 'FCE5CD',         // Durazno
-                'HUEVOS': 'FFF9C4',         // Amarillo muy claro
-                'CARNICOS': 'F4CCCC',       // Rojo claro
-                'BEBIDAS': 'CFE2F3',        // Azul claro
-                'LICORES': 'D9D2E9',        // Morado claro
-                'VINOS': 'E8DAEF',          // Lavanda
-                'PANES': 'F9E79F',          // Amarillo trigo
-                'REC COCINA': 'E8F5E9',     // Verde menta
-                'LACTEOS': 'FFF8DC',        // Crema
-                'PESCADOS': 'B3E5FC',       // Azul agua
-                'MARISCOS': 'E1F5FE',       // Azul cielo
-                'ESPECIAS': 'FFCCBC',       // Coral
-                'ACEITES': 'FFF9C4'         // Amarillo oro
+            ws[address].s = {
+                fill: { fgColor: { rgb: colorFamilia } },
+                alignment: { 
+                    horizontal: C === 1 ? "left" : "center",  // Nombre a la izquierda
+                    vertical: "center" 
+                },
+                border: {
+                    top: { style: "thin", color: { rgb: "CCCCCC" } },
+                    bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                    left: { style: "thin", color: { rgb: "CCCCCC" } },
+                    right: { style: "thin", color: { rgb: "CCCCCC" } }
+                },
+                font: { 
+                    sz: 11,
+                    bold: C === 1  // Nombre en negrita
+                }
             };
             
-            // Ordenar materiales por familia y luego por nombre
-            const materialesOrdenados = [...db.materiales].sort((a, b) => {
-                const familiaA = a.familia || 'ZZZ';
-                const familiaB = b.familia || 'ZZZ';
-                if (familiaA !== familiaB) {
-                    return familiaA.localeCompare(familiaB);
-                }
-                return a.nombre.localeCompare(b.nombre);
-            });
-            
-            // Crear datos para Excel
-            const datos = [];
-            
-            // Encabezado
-            datos.push(['CÓDIGO', 'NOMBRE DEL MATERIAL', 'FAMILIA', 'PRECIO S/.', 'FACTOR', 'U. COSTO', 'U. COMPRA', 'STOCK']);
-            
-            // Agregar materiales
-            materialesOrdenados.forEach(m => {
-                const stockEnUnidadCosto = window.db.inventario[m.sku] || 0;
-                const stockEnUnidadCompra = stockEnUnidadCosto / m.factor;
-                
-                datos.push([
-                    m.sku,
-                    m.nombre,
-                    m.familia || 'SIN FAMILIA',
-                    m.precio,
-                    m.factor,
-                    m.uCosto,
-                    m.uCompra,
-                    stockEnUnidadCompra
-                ]);
-            });
-            
-            // Crear workbook y worksheet
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.aoa_to_sheet(datos);
-            
-            // Configurar anchos de columna
-            ws['!cols'] = [
-                { wch: 12 },  // CÓDIGO
-                { wch: 35 },  // NOMBRE
-                { wch: 18 },  // FAMILIA
-                { wch: 12 },  // PRECIO
-                { wch: 10 },  // FACTOR
-                { wch: 12 },  // U. COSTO
-                { wch: 12 },  // U. COMPRA
-                { wch: 12 }   // STOCK
-            ];
-            
-            // Aplicar estilos
-            const range = XLSX.utils.decode_range(ws['!ref']);
-            
-            // Estilo del encabezado
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const address = XLSX.utils.encode_col(C) + "1";
-                if (!ws[address]) continue;
-                
-                ws[address].s = {
-                    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
-                    fill: { fgColor: { rgb: "1E3A8A" } }, // Azul oscuro
-                    alignment: { horizontal: "center", vertical: "center" },
-                    border: {
-                        top: { style: "thin", color: { rgb: "000000" } },
-                        bottom: { style: "thin", color: { rgb: "000000" } },
-                        left: { style: "thin", color: { rgb: "000000" } },
-                        right: { style: "thin", color: { rgb: "000000" } }
-                    }
-                };
-            }
-            
-            // Estilo de las filas de datos
-            for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-                const material = materialesOrdenados[R - 1];
-                const familia = material.familia || 'SIN FAMILIA';
-                const colorFamilia = coloresFamilia[familia] || 'FFFFFF';
-                
-                for (let C = range.s.c; C <= range.e.c; ++C) {
-                    const address = XLSX.utils.encode_col(C) + (R + 1);
-                    if (!ws[address]) continue;
-                    
-                    ws[address].s = {
-                        fill: { fgColor: { rgb: colorFamilia } },
-                        alignment: { 
-                            horizontal: C === 1 ? "left" : "center",  // Nombre a la izquierda
-                            vertical: "center" 
-                        },
-                        border: {
-                            top: { style: "thin", color: { rgb: "CCCCCC" } },
-                            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
-                            left: { style: "thin", color: { rgb: "CCCCCC" } },
-                            right: { style: "thin", color: { rgb: "CCCCCC" } }
-                        },
-                        font: { 
-                            sz: 11,
-                            bold: C === 1  // Nombre en negrita
-                        }
-                    };
-                    
-                    // Formato especial para precio y stock
-                    if (C === 3) {  // Precio
-                        ws[address].z = '"S/. "#,##0.00';
-                    } else if (C === 7) {  // Stock
-                        ws[address].z = '#,##0.00';
-                    }
-                }
-            }
-            
-            // Agregar worksheet al workbook
-            XLSX.utils.book_append_sheet(wb, ws, "Catálogo Materiales");
-            
-            // Generar nombre de archivo con fecha
-            const ahora = new Date();
-            const fecha = `${ahora.getDate().toString().padStart(2, '0')}-${(ahora.getMonth() + 1).toString().padStart(2, '0')}-${ahora.getFullYear()}`;
-            const nombreArchivo = `Catalogo_Materiales_${fecha}.xlsx`;
-            
-            // Descargar archivo
-            XLSX.writeFile(wb, nombreArchivo);
-            
-            alert(`✅ Catálogo exportado exitosamente\n\n📊 ${window.db.materiales.length} materiales\n📁 ${nombreArchivo}`);
-        }
-
-        function editMaterial(sku) {
-            const m = window.db.materiales.find(x => x.sku === sku);
-            document.getElementById('m-sku-hidden').value = m.sku;
-            document.getElementById('m-nombre').value = m.nombre;
-            document.getElementById('m-u-compra').value = m.uCompra;
-            document.getElementById('m-u-costo').value = m.uCosto;
-            document.getElementById('m-factor').value = m.factor;
-            document.getElementById('m-precio').value = m.precio;
-            document.getElementById('m-nombre').focus();
-            document.getElementById('m-familia').value = m.familia || '';
-            
-            // Marcar los alérgenos que tiene el material
-            document.querySelectorAll('.alergeno-check').forEach(checkbox => {
-                checkbox.checked = m.alergenos && m.alergenos.includes(checkbox.value);
-            });
-            
-            window.scrollTo({top: 0, behavior: 'smooth'});
-        }
-
-        // ========== GESTIÓN DE MODOS RECETA BASE ==========
-        function cambiarModoRecetaBase(modo) {
-            const btnManual = document.getElementById('btn-modo-manual');
-            const btnExcel = document.getElementById('btn-modo-excel');
-            const modoManual = document.getElementById('modo-manual-rb');
-            const modoExcel = document.getElementById('modo-excel-rb');
-            
-            if (modo === 'manual') {
-                // Activar modo manual
-                btnManual.className = 'flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-3 rounded-xl font-bold btn-action';
-                btnExcel.className = 'flex-1 bg-slate-200 text-slate-600 py-3 rounded-xl font-bold btn-action';
-                modoManual.classList.remove('hidden');
-                modoExcel.classList.add('hidden');
-            } else {
-                // Activar modo excel
-                btnManual.className = 'flex-1 bg-slate-200 text-slate-600 py-3 rounded-xl font-bold btn-action';
-                btnExcel.className = 'flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold btn-action';
-                modoManual.classList.add('hidden');
-                modoExcel.classList.remove('hidden');
+            // Formato especial para precio y stock
+            if (C === 3) {  // Precio
+                ws[address].z = '"S/. "#,##0.00';
+            } else if (C === 7) {  // Stock
+                ws[address].z = '#,##0.00';
             }
         }
+    }
+    
+    // Agregar worksheet al workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Catálogo Materiales");
+    
+    // Generar nombre de archivo con fecha
+    const ahora = new Date();
+    const fecha = `${ahora.getDate().toString().padStart(2, '0')}-${(ahora.getMonth() + 1).toString().padStart(2, '0')}-${ahora.getFullYear()}`;
+    const nombreArchivo = `Catalogo_Materiales_${fecha}.xlsx`;
+    
+    // Descargar archivo
+    XLSX.writeFile(wb, nombreArchivo);
+    
+    alert(`✅ Catálogo exportado exitosamente\n\n📊 ${window.db.materiales.length} materiales\n📁 ${nombreArchivo}`);
+}
 
-        function procesarExcelPegado() {
-            const textarea = document.getElementById('excel-paste-area');
-            const texto = textarea.value.trim();
-            
-            if (!texto) {
-                alert('⚠️ Pega datos desde Excel primero');
-                return;
+function editMaterial(sku) {
+    const m = window.db.materiales.find(x => x.sku === sku);
+    document.getElementById('m-sku-hidden').value = m.sku;
+    document.getElementById('m-nombre').value = m.nombre;
+    document.getElementById('m-u-compra').value = m.uCompra;
+    document.getElementById('m-u-costo').value = m.uCosto;
+    document.getElementById('m-factor').value = m.factor;
+    document.getElementById('m-precio').value = m.precio;
+    document.getElementById('m-nombre').focus();
+    document.getElementById('m-familia').value = m.familia || '';
+    
+    // Marcar los alérgenos que tiene el material
+    document.querySelectorAll('.alergeno-check').forEach(checkbox => {
+        checkbox.checked = m.alergenos && m.alergenos.includes(checkbox.value);
+    });
+    
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// ========== GESTIÓN DE MODOS RECETA BASE ==========
+function cambiarModoRecetaBase(modo) {
+    const btnManual = document.getElementById('btn-modo-manual');
+    const btnExcel = document.getElementById('btn-modo-excel');
+    const modoManual = document.getElementById('modo-manual-rb');
+    const modoExcel = document.getElementById('modo-excel-rb');
+    
+    if (modo === 'manual') {
+        // Activar modo manual
+        btnManual.className = 'flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-3 rounded-xl font-bold btn-action';
+        btnExcel.className = 'flex-1 bg-slate-200 text-slate-600 py-3 rounded-xl font-bold btn-action';
+        modoManual.classList.remove('hidden');
+        modoExcel.classList.add('hidden');
+    } else {
+        // Activar modo excel
+        btnManual.className = 'flex-1 bg-slate-200 text-slate-600 py-3 rounded-xl font-bold btn-action';
+        btnExcel.className = 'flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold btn-action';
+        modoManual.classList.add('hidden');
+        modoExcel.classList.remove('hidden');
+    }
+}
+
+function procesarExcelPegado() {
+    const textarea = document.getElementById('excel-paste-area');
+    const texto = textarea.value.trim();
+    
+    if (!texto) {
+        alert('⚠️ Pega datos desde Excel primero');
+        return;
             }
             
             if (!document.getElementById('b-nombre').value) {
@@ -6635,6 +6659,7 @@ function updateDropdowns() {
 }
 
         function openPasteModal() {
+            console.log('🔍 Intentando abrir modal de importación. Usuario actual:', window.usuarioActual);
             // 🔐 VALIDACIÓN DE CLAVE ADMIN
             solicitarClaveAdmin(function() {
                 openPasteModalReal();
@@ -7446,6 +7471,7 @@ function renderPlatos() {
         }
         
         window.solicitarImportarJSON = function() {
+            console.log('🔍 Intentando importar JSON desde botón. Usuario actual:', window.usuarioActual);
             // 🔐 VALIDACIÓN DE CLAVE ADMIN
             solicitarClaveAdmin(function() {
                 // Si la clave es correcta, abrir el file input
@@ -7545,9 +7571,6 @@ function renderPlatos() {
                                       'La página se recargará.');
                                 
                                 setTimeout(function() {
-                                    location.reload();
-                                }, 1000);
-                            });
                                     location.reload();
                                 }, 1000);
                             });
@@ -14178,13 +14201,13 @@ showSection = function(id) {
 
 function showSectionConValidacion(id) {
     // VALIDACIÓN DE PERMISOS: Verificar si el usuario tiene acceso
-    if (usuarioActual && usuarioActual.rol !== 'admin' && usuarioActual.rol !== 'mozo') {
+    if (window.usuarioActual && window.usuarioActual.rol !== 'admin' && window.usuarioActual.rol !== 'mozo') {
         // Si el usuario tiene permisos personalizados, verificar
-        if (usuarioActual.permisos && usuarioActual.permisos.indexOf(id) === -1) {
+        if (window.usuarioActual.permisos && window.usuarioActual.permisos.indexOf(id) === -1) {
             console.log('🚫 ACCESO DENEGADO a sección:', id);
-            console.log('   Usuario:', usuarioActual.nombre);
-            console.log('   Rol:', usuarioActual.rol);
-            console.log('   Permisos:', usuarioActual.permisos);
+            console.log('   Usuario:', window.usuarioActual.nombre);
+            console.log('   Rol:', window.usuarioActual.rol);
+            console.log('   Permisos:', window.usuarioActual.permisos);
             alert('⛔ ACCESO DENEGADO\n\nNo tienes permisos para acceder a este módulo.\n\nContacta al administrador si necesitas acceso.');
             return; // No ejecutar showSectionOriginal
         }
@@ -16231,7 +16254,7 @@ function actualizarSelectProveedores() {
 }
 
 // ========== SISTEMA DE USUARIOS Y LOGIN ==========
-let usuarioActual = null;
+window.usuarioActual = null;
 let autoLoginTimeout = null; // Para controlar el auto-login con delay
 let pedidoActual = {
     tipo: null, // 'salon' o 'llevar'
@@ -16279,14 +16302,26 @@ var accionPendienteClaveAdmin = null; // Guarda la función a ejecutar después 
  * @param {string} mensaje - Mensaje personalizado (opcional)
  */
 function solicitarClaveAdmin(accion, mensaje) {
-    // Si es manager o admin, ejecutar directamente SIN pedir clave
-    if (usuarioActual && (usuarioActual.id === 'manager' || usuarioActual.rol === 'admin')) {
-        console.log('✅ Usuario es manager/admin, ejecutando acción directamente sin pedir clave');
+    console.log('🔐 solicitarClaveAdmin llamada. Usuario actual:', window.usuarioActual);
+    
+    // Manager y Admin no necesitan clave
+    if (window.usuarioActual && (window.usuarioActual.id === 'manager' || window.usuarioActual.rol === 'admin')) {
+        console.log('✅ Usuario manager/admin detectado: acceso directo sin clave');
+        console.log('   - ID:', window.usuarioActual.id);
+        console.log('   - Rol:', window.usuarioActual.rol);
         accion();
         return;
     }
     
-    // Para otros roles, pedir la clave del admin que está logueado
+    console.log('⚠️ Usuario requiere validación de clave admin');
+    if (window.usuarioActual) {
+        console.log('   - ID:', window.usuarioActual.id);
+        console.log('   - Rol:', window.usuarioActual.rol);
+    } else {
+        console.log('   - window.usuarioActual es null/undefined');
+    }
+    
+    // Guardar acción pendiente
     accionPendienteClaveAdmin = accion;
     
     // Mostrar modal
@@ -16294,6 +16329,16 @@ function solicitarClaveAdmin(accion, mensaje) {
     var input = document.getElementById('input-clave-admin');
     var mensajeElement = document.getElementById('mensaje-clave-admin');
     var errorDiv = document.getElementById('error-clave-admin');
+    var debugInfo = document.getElementById('debug-usuario-info');
+    
+    // Mostrar info de debug
+    if (debugInfo) {
+        if (window.usuarioActual) {
+            debugInfo.innerHTML = `Usuario: ${window.usuarioActual.usuario || 'N/A'}<br>ID: ${window.usuarioActual.id || 'N/A'}<br>Rol: ${window.usuarioActual.rol || 'N/A'}`;
+        } else {
+            debugInfo.innerHTML = 'window.usuarioActual = null/undefined';
+        }
+    }
     
     if (mensaje) {
         mensajeElement.textContent = mensaje;
@@ -16311,7 +16356,7 @@ function solicitarClaveAdmin(accion, mensaje) {
         input.focus();
     }, 100);
     
-    console.log('🔐 Solicitando clave del administrador actual para función protegida');
+    console.log('Solicitando clave de admin');
 }
 
 /**
@@ -16359,10 +16404,10 @@ async function validarClaveAdmin() {
     
     // Hashear la contraseña ingresada
     const claveHash = await hashPassword(claveIngresada);
-    console.log('🔍 Verificando contraseña del admin actual...');
+    console.log('🔍 Verificando contraseña...');
     
-    // Buscar admin en la base de datos (el que está guardado, no el hardcodeado)
-    var admin = window.db.usuarios ? window.db.usuarios.find(u => u.rol === 'admin' && !u.oculto) : null;
+    // Buscar admin en la base de datos
+    var admin = window.db.usuarios ? window.db.usuarios.find(u => u.rol === 'admin') : null;
     
     if (!admin) {
         console.error('❌ No se encontró usuario admin en la base de datos');
@@ -16372,14 +16417,14 @@ async function validarClaveAdmin() {
         return;
     }
     
-    console.log('🔍 Comparando con contraseña del admin:', admin.usuario);
-    
-    // Validar clave - comparar con la contraseña del admin en la BD
-    // Soportar tanto hash como texto plano (compatibilidad)
-    const esValido = (claveHash === admin.password) || (claveIngresada === admin.password);
+    // Validar clave - comparar con hash
+    // Primero intentar con PASSWORD_ADMIN_HASH (sistema), luego con admin.password (BD)
+    const esValido = (claveHash === PASSWORD_ADMIN_HASH) || 
+                     (claveHash === admin.password) || 
+                     (claveIngresada === admin.password); // Compatibilidad con contraseñas antiguas sin hash
     
     if (esValido) {
-        console.log('✅ Contraseña correcta del admin actual');
+        console.log('✅ Contraseña correcta, ejecutando acción');
         
         // Cerrar modal
         cerrarModalClaveAdmin();
@@ -16435,8 +16480,8 @@ function aplicarPermisosPorRol(rol, silencioso) {
         permitidos = [];
     } else {
         // Chef, almacén, supervisor -> usar permisos personalizados
-        if (usuarioActual && usuarioActual.permisos) {
-            permitidos = usuarioActual.permisos;
+        if (window.usuarioActual && window.usuarioActual.permisos) {
+            permitidos = window.usuarioActual.permisos;
         } else {
             // Permisos por defecto si no están definidos (compatibilidad)
             const permisosDefecto = {
@@ -16450,7 +16495,7 @@ function aplicarPermisosPorRol(rol, silencioso) {
     if (!silencioso) {
         console.log('✅ Secciones permitidas para ' + rol + ':', permitidos);
         console.log('📏 Cantidad de secciones permitidas:', permitidos.length);
-        if (usuarioActual && usuarioActual.permisos) {
+        if (window.usuarioActual && window.usuarioActual.permisos) {
             console.log('🔐 Usando permisos personalizados del usuario');
         }
     }
@@ -16506,7 +16551,7 @@ function aplicarRestriccionesRol(rol, silencioso) {
     }
     
     // CHEF: Solo lectura en MATERIALES
-    if (rol === 'chef' || (usuarioActual && usuarioActual.rol === 'chef')) {
+    if (rol === 'chef' || (window.usuarioActual && window.usuarioActual.rol === 'chef')) {
         if (!silencioso) console.log('👨‍🍳 Aplicando modo SOLO LECTURA para Chef en Materiales');
         
         // Ocultar formulario de crear material
@@ -16670,7 +16715,7 @@ function toggleRadio() {
 
 function mostrarRadioManager() {
     // Solo mostrar si el usuario es manager
-    if (usuarioActual && usuarioActual.id === 'manager') {
+    if (window.usuarioActual && window.usuarioActual.id === 'manager') {
         const miniRadio = document.getElementById('mini-radio');
         const radioIframe = document.getElementById('radio-iframe');
         
@@ -16709,10 +16754,10 @@ function mostrarSeccionPorRol(rol) {
     console.log('═══════════════════════════════════════════════════');
     console.log('📍 mostrarSeccionPorRol() ejecutado');
     console.log('   - Rol recibido:', rol);
-    console.log('   - usuarioActual:', usuarioActual);
+    console.log('   - window.usuarioActual:', window.usuarioActual);
     console.log('═══════════════════════════════════════════════════');
     
-    guardarSesion(usuarioActual); // Guardar sesión en localStorage
+    guardarSesion(window.usuarioActual); // Guardar sesión en localStorage
     
     // TODOS VAN AL MÓDULO ADMINISTRATIVO (POS ELIMINADO)
     console.log('📋 ➡️  REDIRIGIENDO A MÓDULO ADMINISTRATIVO');
@@ -16726,7 +16771,7 @@ function mostrarSeccionPorRol(rol) {
     
     const nombreUsuarioAdminElement = document.getElementById('nombre-usuario-admin');
     if (nombreUsuarioAdminElement) {
-        nombreUsuarioAdminElement.textContent = usuarioActual.nombre;
+        nombreUsuarioAdminElement.textContent = window.usuarioActual.nombre;
     }
     
     // Aplicar permisos INMEDIATAMENTE
@@ -16751,7 +16796,7 @@ function mostrarSeccionPorRol(rol) {
     console.log('✅ REDIRIGIDO A ADMINISTRACIÓN EXITOSAMENTE');
     
     // Registrar login en logs
-    registrarActividad('login', 'Inicio de sesión', 'Usuario: ' + usuarioActual.nombre + ' (' + usuarioActual.rol + ')');
+    registrarActividad('login', 'Inicio de sesión', 'Usuario: ' + window.usuarioActual.nombre + ' (' + window.usuarioActual.rol + ')');
     
     // Inicializar ticker después del login
     setTimeout(() => {
@@ -16804,7 +16849,8 @@ async function iniciarSesionInteligente() {
             const manager = window.db.usuarios.find(u => u.id === 'manager');
             if (manager) {
                 console.log('✅ MANAGER ENCONTRADO - Acceso especial con hash verificado');
-                usuarioActual = manager;
+                window.usuarioActual = manager;
+                guardarSesion(manager); // 💾 Guardar sesión
                 document.getElementById('pantalla-login').style.display = 'none';
                 
                 // CARGAR DATOS DESDE FIREBASE
@@ -16845,7 +16891,8 @@ async function iniciarSesionInteligente() {
             console.log('   - Rol:', mozo.rol);
             console.log('🚀 Ejecutando login de mozo...');
             
-            usuarioActual = mozo;
+            window.usuarioActual = mozo;
+            guardarSesion(mozo); // 💾 Guardar sesión
             document.getElementById('pantalla-login').style.display = 'none';
             
             // CARGAR DATOS DESDE FIREBASE
@@ -16900,7 +16947,8 @@ async function iniciarSesionInteligente() {
     }
     
     console.log('✅ Login exitoso:', user.nombre);
-    usuarioActual = user;
+    window.usuarioActual = user;
+    guardarSesion(user); // 💾 Guardar sesión
     document.getElementById('pantalla-login').style.display = 'none';
     
     // CARGAR DATOS DESDE FIREBASE (si existe la función y firestore está configurado)
@@ -16971,7 +17019,7 @@ async function iniciarSesion() {
         return;
     }
     
-    usuarioActual = user;
+    window.usuarioActual = user;
     guardarSesion(user); // Guardar sesión en localStorage
     document.getElementById('pantalla-login').classList.add('hidden');
     
@@ -17071,7 +17119,7 @@ function actualizarBotonFullscreen() {
 
 // Cambiar entre módulos sin cerrar sesión
 function cambiarModulo(destino) {
-    if (!usuarioActual) {
+    if (!window.usuarioActual) {
         alert('⚠️ Error de sesión');
         return;
     }
@@ -17079,7 +17127,7 @@ function cambiarModulo(destino) {
     // Solo existe el módulo admin ahora (POS eliminado)
     if (destino === 'admin') {
         // Verificar que tenga permisos de admin
-        if (usuarioActual.rol !== 'admin') {
+        if (window.usuarioActual.rol !== 'admin') {
             alert('❌ No tienes permisos de administrador');
             return;
         }
@@ -17094,15 +17142,15 @@ function cambiarModulo(destino) {
         
         const nombreUsuarioAdminElement3 = document.getElementById('nombre-usuario-admin');
         if (nombreUsuarioAdminElement3) {
-            nombreUsuarioAdminElement3.textContent = usuarioActual.nombre;
+            nombreUsuarioAdminElement3.textContent = window.usuarioActual.nombre;
         }
         
         // Aplicar permisos INMEDIATAMENTE
-        aplicarPermisosPorRol(usuarioActual.rol);
+        aplicarPermisosPorRol(window.usuarioActual.rol);
         
         // Y también después del renderizado
         requestAnimationFrame(function() {
-            aplicarPermisosPorRol(usuarioActual.rol);
+            aplicarPermisosPorRol(window.usuarioActual.rol);
         });
     }
 }
@@ -17231,7 +17279,7 @@ function confirmarMesa() {
             items: [],
             total: 0,
             fecha: new Date().toISOString(),
-            mozo: usuarioActual.nombre
+            mozo: window.usuarioActual.nombre
         };
         
         save();
@@ -18800,7 +18848,7 @@ function enviarACocina() {
             items: pedidoActual.items.slice(), // Copia completa de items
             total: pedidoActual.total,
             fecha: window.db.pedidosActivos[pedidoActual.mesa] ? window.db.pedidosActivos[pedidoActual.mesa].fecha : new Date().toISOString(),
-            mozo: usuarioActual.nombre
+            mozo: window.usuarioActual.nombre
         };
         
         console.log('Pedido guardado en window.db.pedidosActivos[' + pedidoActual.mesa + ']:', window.db.pedidosActivos[pedidoActual.mesa]);
@@ -18811,7 +18859,7 @@ function enviarACocina() {
             items: pedidoActual.items.slice(), // Copia completa de items
             total: pedidoActual.total,
             fecha: window.db.pedidosActivos['LLEVAR'] ? window.db.pedidosActivos['LLEVAR'].fecha : new Date().toISOString(),
-            mozo: usuarioActual.nombre
+            mozo: window.usuarioActual.nombre
         };
         
         console.log('🥡 Pedido PARA LLEVAR guardado en window.db.pedidosActivos[LLEVAR]:', window.db.pedidosActivos['LLEVAR']);
@@ -18866,7 +18914,7 @@ function imprimirTicketCocina(items) {
         html += '<p style="margin: 0; font-size: 13px;"><strong>Tipo:</strong> Para Llevar</p>';
     }
     
-    html += '<p style="margin: 0; font-size: 13px;"><strong>Mozo:</strong> ' + usuarioActual.nombre + '</p>';
+    html += '<p style="margin: 0; font-size: 13px;"><strong>Mozo:</strong> ' + window.usuarioActual.nombre + '</p>';
     html += '</div>';
     html += '</div>';
     
@@ -19106,7 +19154,7 @@ function confirmarCobro() {
         descuento: descuentoAplicado,
         total: totalFinal,
         metodoPago: metodo,
-        usuario: usuarioActual.nombre
+        usuario: window.usuarioActual.nombre
     };
     
     window.db.ventas.push(venta);
@@ -19722,9 +19770,9 @@ function registrarActividad(tipo, accion, detalles) {
     var log = {
         id: Date.now().toString(),
         fecha: new Date().toISOString(),
-        usuario: usuarioActual ? usuarioActual.nombre : 'Sistema',
-        usuarioId: usuarioActual ? usuarioActual.id : 'sistema',
-        rol: usuarioActual ? usuarioActual.rol : 'sistema',
+        usuario: window.usuarioActual ? window.usuarioActual.nombre : 'Sistema',
+        usuarioId: window.usuarioActual ? window.usuarioActual.id : 'sistema',
+        rol: window.usuarioActual ? window.usuarioActual.rol : 'sistema',
         tipo: tipo, // login, platos, usuarios, materiales, ventas, configuracion, sistema
         accion: accion,
         detalles: detalles,
@@ -24972,7 +25020,8 @@ async function iniciarSesion(event) {
         if (!response.ok) throw new Error('Login fallido');
         
         const data = await response.json();
-        usuarioActual = data.user;
+        window.usuarioActual = data.user;
+        guardarSesion(data.user); // 💾 Guardar sesión
         
         // Cargar datos desde backend
         const [eventos, compras, inventario, usuarios] = await Promise.all([
@@ -26909,6 +26958,8 @@ async function cargarTodosDatos() {
         
         mostrarSync('success');
         
+        garantizarDatos();
+        
         // Actualizar interfaz
         if (typeof renderMaterials === 'function') renderMaterials();
         if (typeof renderBases === 'function') renderBases();
@@ -26916,6 +26967,8 @@ async function cargarTodosDatos() {
         if (typeof renderEventosGuardados === 'function') renderEventosGuardados();
         if (typeof renderProveedores === 'function') renderProveedores();
         if (typeof actualizarDashboard === 'function') actualizarDashboard();
+        if (typeof updateFamiliasDropdown === 'function') updateFamiliasDropdown();
+        if (typeof renderFamilias === 'function') renderFamilias();
         
     } catch (error) {
         console.error('❌ Error cargando datos:', error);
