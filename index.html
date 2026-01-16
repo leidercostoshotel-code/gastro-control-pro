@@ -16332,10 +16332,18 @@ var accionPendienteClaveAdmin = null; // Guarda la función a ejecutar después 
  */
 function solicitarClaveAdmin(accion, mensaje) {
     console.log('🔐 solicitarClaveAdmin llamada. Usuario actual:', window.usuarioActual);
+    console.log('🔐 Firebase currentUserRole:', window.currentUserRole);
     
-    // Manager y Admin no necesitan clave
-    if (window.usuarioActual && (window.usuarioActual.id === 'manager' || window.usuarioActual.rol === 'admin')) {
-        console.log('✅ Usuario manager/admin detectado: acceso directo sin clave');
+    // PRIORIDAD 1: Verificar Firebase currentUserRole (más confiable)
+    if (window.currentUserRole && window.currentUserRole.rol === 'manager') {
+        console.log('✅ Usuario MANAGER detectado vía Firebase: acceso directo sin clave');
+        accion();
+        return;
+    }
+    
+    // PRIORIDAD 2: Verificar window.usuarioActual (sistema legacy POS)
+    if (window.usuarioActual && (window.usuarioActual.id === 'manager' || window.usuarioActual.rol === 'admin' || window.usuarioActual.rol === 'manager')) {
+        console.log('✅ Usuario manager/admin detectado vía usuarioActual: acceso directo sin clave');
         console.log('   - ID:', window.usuarioActual.id);
         console.log('   - Rol:', window.usuarioActual.rol);
         accion();
@@ -27105,6 +27113,17 @@ function iniciarAuthObserver() {
                 if (rolDoc.exists) {
                     window.currentUserRole = rolDoc.data();
                     console.log('👤 Rol:', window.currentUserRole.rol);
+                    
+                    // SINCRONIZAR window.usuarioActual con Firebase para compatibilidad con sistema legacy
+                    window.usuarioActual = {
+                        id: window.currentUserRole.rol === 'manager' ? 'manager' : user.email,
+                        usuario: window.currentUserRole.nombre,
+                        nombre: window.currentUserRole.nombre,
+                        rol: window.currentUserRole.rol,
+                        pin: null,
+                        firebase: true
+                    };
+                    console.log('✅ window.usuarioActual sincronizado:', window.usuarioActual);
                     
                     if (!window.currentUserRole.activo) {
                         alert('Tu cuenta está desactivada. Contacta al administrador.');
