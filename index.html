@@ -26265,6 +26265,15 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
     window.guardadosEnCurso[coleccion] = true;
     console.log(`🔒 Guardado iniciado para ${coleccion}`);
     
+    // DESCONECTAR TEMPORALMENTE EL LISTENER para evitar conflictos
+    const listener = unsubscribeFunctions[coleccion];
+    let wasConnected = false;
+    if (listener && typeof listener === 'function') {
+        listener(); // Desconectar
+        wasConnected = true;
+        console.log(`⏸️ Listener de ${coleccion} pausado durante guardado`);
+    }
+    
     if (mostrarIndicador) mostrarSync('loading');
     
     try {
@@ -26362,11 +26371,20 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
         console.log(`✅ ${coleccion} guardado en Firestore`);
         if (mostrarIndicador) mostrarSync('success');
         
-        // DESBLOQUEAR después de un delay para asegurar propagación en Firebase
+        // DESBLOQUEAR después de un delay MÁS LARGO para asegurar propagación en Firebase
+        // Firebase puede tardar 3-5 segundos en propagar completamente los cambios
         setTimeout(() => {
             window.guardadosEnCurso[coleccion] = false;
             console.log(`🔓 Guardado completado para ${coleccion}`);
-        }, 1500);
+            
+            // RECONECTAR LISTENER después de que Firebase propague los cambios
+            if (wasConnected) {
+                setTimeout(() => {
+                    console.log(`▶️ Reconectando listener de ${coleccion}...`);
+                    iniciarListenerIndividual(coleccion);
+                }, 1000);
+            }
+        }, 5000); // Aumentado de 1500ms a 5000ms (5 segundos)
         
         return true;
         
@@ -26377,6 +26395,14 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
         // DESBLOQUEAR en caso de error
         window.guardadosEnCurso[coleccion] = false;
         console.log(`🔓 Guardado fallido para ${coleccion}, desbloqueando`);
+        
+        // RECONECTAR LISTENER incluso si hubo error
+        if (wasConnected) {
+            setTimeout(() => {
+                console.log(`▶️ Reconectando listener de ${coleccion} después de error...`);
+                iniciarListenerIndividual(coleccion);
+            }, 1000);
+        }
         
         if (error.code === 'permission-denied') {
             alert(`⚠️ Permiso denegado para: ${coleccion}\n\nVerifica tus permisos con el administrador.`);
@@ -26487,11 +26513,23 @@ function iniciarSincronizacionTiempoReal() {
                     if (!window.db) window.db = {};
                     
                     // MERGE inteligente: combinar datos locales con datos de Firebase
-                    // Solo actualizar si realmente hay cambios
                     const datosActuales = window.db[coleccion] || [];
+                    
+                    // PROTECCIÓN CRÍTICA: No sobrescribir si Firebase tiene MENOS datos que local
+                    // Esto previene que se borren datos durante la sincronización
+                    if (Array.isArray(datosActuales) && Array.isArray(datos)) {
+                        if (datos.length < datosActuales.length) {
+                            console.warn(`⚠️ Firebase tiene menos datos (${datos.length}) que local (${datosActuales.length}). Ignorando para proteger datos.`);
+                            console.log(`💡 Esperando a que Firebase complete la sincronización...`);
+                            return; // NO sobrescribir
+                        }
+                    }
+                    
+                    // Solo actualizar si realmente hay cambios
                     const hayDiferencias = JSON.stringify(datosActuales) !== JSON.stringify(datos);
                     
                     if (hayDiferencias) {
+                        console.log(`🔄 Actualizando ${coleccion}: ${datosActuales.length} → ${datos.length} items`);
                         window.db[coleccion] = datos;
                         actualizarInterfazSegunColeccion(coleccion);
                         
@@ -26499,6 +26537,8 @@ function iniciarSincronizacionTiempoReal() {
                         if (cambios.length > 0) {
                             mostrarNotificacionCambio(coleccion, cambios.length);
                         }
+                    } else {
+                        console.log(`✅ ${coleccion} ya está actualizado`);
                     }
                 },
                 (error) => {
@@ -26510,6 +26550,81 @@ function iniciarSincronizacionTiempoReal() {
     });
     
     console.log('✅ Sincronización en tiempo real activa');
+}
+
+// Función para reconectar un listener individual (usado después de guardar)
+function iniciarListenerIndividual(coleccion) {
+    if (!currentUser) return;
+    if (!tieneAccesoAColeccion(coleccion)) {
+        console.log(`⏭️ Saltando ${coleccion} (sin acceso)`);
+        return;
+    }
+    
+    // Desconectar listener anterior si existe
+    if (unsubscribeFunctions[coleccion]) {
+        unsubscribeFunctions[coleccion]();
+        console.log(`🔌 Listener anterior de ${coleccion} desconectado`);
+    }
+    
+    let isFirstLoad = true;
+    
+    const unsubscribe = firestore
+        .collection('organizations')
+        .doc(ORGANIZATION_ID)
+        .collection(coleccion)
+        .onSnapshot(
+            (snapshot) => {
+                // Ignorar el primer snapshot
+                if (isFirstLoad) {
+                    isFirstLoad = false;
+                    console.log(`📊 Listener de ${coleccion} reconectado (ignorando primer snapshot)`);
+                    return;
+                }
+                
+                // Si hay guardado en curso, ignorar
+                if (window.guardadosEnCurso[coleccion]) {
+                    console.log(`⏳ Guardado en curso para ${coleccion}, esperando...`);
+                    return;
+                }
+                
+                console.log(`🔔 Cambio detectado en ${coleccion}`);
+                
+                const datos = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    delete data._updatedAt;
+                    delete data._updatedBy;
+                    datos.push(data);
+                });
+                
+                if (!window.db) window.db = {};
+                
+                const datosActuales = window.db[coleccion] || [];
+                
+                // Protección: no sobrescribir si Firebase tiene menos datos
+                if (Array.isArray(datosActuales) && Array.isArray(datos)) {
+                    if (datos.length < datosActuales.length) {
+                        console.warn(`⚠️ Firebase tiene menos datos, ignorando`);
+                        return;
+                    }
+                }
+                
+                // Solo actualizar si hay cambios
+                const hayDiferencias = JSON.stringify(datosActuales) !== JSON.stringify(datos);
+                
+                if (hayDiferencias) {
+                    console.log(`🔄 Actualizando ${coleccion}: ${datosActuales.length} → ${datos.length}`);
+                    window.db[coleccion] = datos;
+                    actualizarInterfazSegunColeccion(coleccion);
+                }
+            },
+            (error) => {
+                console.error(`❌ Error en listener de ${coleccion}:`, error);
+            }
+        );
+    
+    unsubscribeFunctions[coleccion] = unsubscribe;
+    console.log(`✅ Listener de ${coleccion} reconectado correctamente`);
 }
 
 function actualizarInterfazSegunColeccion(coleccion) {
