@@ -26638,7 +26638,17 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
         
         await batch.commit();
         
+        // VERIFICAR que realmente se guardó
+        const verificacion = await basePath.get();
+        const docsGuardados = verificacion.size;
+        
         console.log(`✅ ${coleccion} guardado en Firestore (${Array.isArray(datos) ? datos.length : Object.keys(datos).length} items)`);
+        console.log(`🔍 Verificación: ${docsGuardados} documentos en Firestore después del commit`);
+        
+        if (docsGuardados === 0 && Array.isArray(datos) && datos.length > 0) {
+            console.error(`⚠️ ALERTA: Se intentaron guardar ${datos.length} items pero Firestore tiene 0. Posible problema de permisos o reglas.`);
+        }
+        
         if (mostrarIndicador) mostrarSync('success');
         
         // DESBLOQUEAR después de un delay
