@@ -27038,6 +27038,18 @@ window.saveCollection = async function(coleccion) {
     }
     
     if (window.db[coleccion]) {
+        const datos = window.db[coleccion];
+        
+        // NO guardar si está vacío (esto evita borrar datos en Firestore)
+        if (Array.isArray(datos) && datos.length === 0) {
+            console.log(`⏭️ Saltando guardado de ${coleccion} (array vacío)`);
+            return;
+        }
+        if (typeof datos === 'object' && !Array.isArray(datos) && Object.keys(datos).length === 0) {
+            console.log(`⏭️ Saltando guardado de ${coleccion} (objeto vacío)`);
+            return;
+        }
+        
         await guardarEnFirestore(coleccion, window.db[coleccion], true);
     }
 };
