@@ -26568,66 +26568,59 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
         
         const batch = firestore.batch();
         
-        // NUEVO: En lugar de borrar todo, obtener los IDs existentes
+        // Obtener documentos existentes
         const snapshot = await basePath.get();
-        const existingIds = new Set();
-        const existingDocs = {};
+        const existingDocs = new Map(); // Mapa de sku -> docId
         
         snapshot.forEach(doc => {
-            existingIds.add(doc.id);
-            existingDocs[doc.id] = doc;
+            const data = doc.data();
+            if (data.sku) {
+                existingDocs.set(data.sku, doc.id);
+            }
         });
         
+        console.log(`📊 ${coleccion}: ${existingDocs.size} existentes, ${Array.isArray(datos) ? datos.length : Object.keys(datos).length} nuevos`);
+        
         if (Array.isArray(datos)) {
-            // Crear un Set de SKUs que vienen en los datos
-            const datosSkus = new Set();
-            
+            // Para arrays (materiales, platos, etc.)
             datos.forEach(item => {
-                if (item.sku) {
-                    datosSkus.add(item.sku);
-                    
-                    // Buscar si ya existe un documento con este SKU
-                    let docId = null;
-                    snapshot.forEach(doc => {
-                        if (doc.data().sku === item.sku) {
-                            docId = doc.id;
-                        }
+                if (!item.sku) {
+                    console.warn('⚠️ Item sin SKU, ignorando:', item);
+                    return;
+                }
+                
+                const docId = existingDocs.get(item.sku);
+                
+                if (docId) {
+                    // Actualizar existente
+                    console.log(`🔄 Actualizando ${item.sku}`);
+                    batch.update(basePath.doc(docId), {
+                        ...item,
+                        _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        _updatedBy: currentUser.email
                     });
-                    
-                    if (docId) {
-                        // Actualizar existente
-                        batch.update(basePath.doc(docId), {
-                            ...item,
-                            _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            _updatedBy: currentUser.email
-                        });
-                    } else {
-                        // Crear nuevo
-                        const docRef = basePath.doc();
-                        batch.set(docRef, {
-                            ...item,
-                            _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            _updatedBy: currentUser.email
-                        });
-                    }
+                } else {
+                    // Crear nuevo
+                    console.log(`✨ Creando nuevo ${item.sku}`);
+                    const docRef = basePath.doc();
+                    batch.set(docRef, {
+                        ...item,
+                        _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        _updatedBy: currentUser.email
+                    });
                 }
             });
             
-            // Borrar solo los que ya no existen en datos
-            snapshot.forEach(doc => {
-                const docData = doc.data();
-                if (docData.sku && !datosSkus.has(docData.sku)) {
-                    batch.delete(doc.ref);
-                }
-            });
+            // NO BORRAR AUTOMÁTICAMENTE
+            // Solo actualizar/crear, nunca borrar sin confirmación explícita
             
         } else {
             // Para objetos (como inventario)
             for (const [key, value] of Object.entries(datos)) {
                 const docRef = basePath.doc(key);
-                const exists = existingIds.has(key);
+                const snapshot = await docRef.get();
                 
-                if (exists) {
+                if (snapshot.exists) {
                     batch.update(docRef, {
                         ...value,
                         _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -26641,22 +26634,14 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
                     });
                 }
             }
-            
-            // Borrar keys que ya no existen
-            existingIds.forEach(id => {
-                if (!datos[id]) {
-                    batch.delete(basePath.doc(id));
-                }
-            });
         }
         
         await batch.commit();
         
-        console.log(`✅ ${coleccion} guardado en Firestore`);
+        console.log(`✅ ${coleccion} guardado en Firestore (${Array.isArray(datos) ? datos.length : Object.keys(datos).length} items)`);
         if (mostrarIndicador) mostrarSync('success');
         
-        // DESBLOQUEAR después de un delay MÁS LARGO para asegurar propagación en Firebase
-        // Firebase puede tardar 3-5 segundos en propagar completamente los cambios
+        // DESBLOQUEAR después de un delay
         setTimeout(() => {
             window.guardadosEnCurso[coleccion] = false;
             console.log(`🔓 Guardado completado para ${coleccion}`);
@@ -26666,9 +26651,9 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
                 setTimeout(() => {
                     console.log(`▶️ Reconectando listener de ${coleccion}...`);
                     iniciarListenerIndividual(coleccion);
-                }, 8000);
+                }, 10000); // 10 segundos para dar tiempo a propagación
             }
-        }, 5000); // Aumentado de 1500ms a 5000ms (5 segundos)
+        }, 5000);
         
         return true;
         
@@ -26688,11 +26673,6 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
             }, 8000);
         }
         
-        if (error.code === 'permission-denied') {
-            alert(`⚠️ Permiso denegado para: ${coleccion}\n\nVerifica tus permisos con el administrador.`);
-        } else {
-            alert(`Error al guardar: ${error.message}`);
-        }
         return false;
     }
 }
