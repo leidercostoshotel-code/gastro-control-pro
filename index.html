@@ -4557,7 +4557,17 @@ window.onload = async () => {
                     
                     for (const col of colecciones) {
                         if (window.db[col]) {
-                            await guardarEnFirestore(col, window.db[col], false);
+                            const datos = window.db[col];
+                            
+                            // NO guardar si está vacío
+                            const estaVacio = Array.isArray(datos) ? datos.length === 0 : 
+                                            (typeof datos === 'object' && Object.keys(datos).length === 0);
+                            
+                            if (!estaVacio) {
+                                await guardarEnFirestore(col, window.db[col], false);
+                            } else {
+                                console.log(`⏭️ Saltando ${col} (vacío)`);
+                            }
                         }
                     }
                     
@@ -26656,7 +26666,7 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
                 setTimeout(() => {
                     console.log(`▶️ Reconectando listener de ${coleccion}...`);
                     iniciarListenerIndividual(coleccion);
-                }, 1000);
+                }, 8000);
             }
         }, 5000); // Aumentado de 1500ms a 5000ms (5 segundos)
         
@@ -26675,7 +26685,7 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
             setTimeout(() => {
                 console.log(`▶️ Reconectando listener de ${coleccion} después de error...`);
                 iniciarListenerIndividual(coleccion);
-            }, 1000);
+            }, 8000);
         }
         
         if (error.code === 'permission-denied') {
