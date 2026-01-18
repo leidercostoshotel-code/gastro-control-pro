@@ -4511,11 +4511,6 @@ window.onload = async () => {
     }
     updateAreasDropdown();
     
-    // ========== AUTO-GUARDADO CADA 5 MINUTOS ==========
-    setInterval(async () => {
-        await save();
-        console.log('💾 Auto-guardado:', new Date().toLocaleTimeString());
-    }, 5 * 60 * 1000); // 5 minutos
     
     // ========== MENSAJE DE BIENVENIDA (solo primera vez con IndexedDB) ==========
     if (false) { // localStorage.getItem('indexeddb_welcome_shown')) {
