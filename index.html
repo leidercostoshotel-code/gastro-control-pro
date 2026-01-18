@@ -26656,12 +26656,12 @@ async function guardarEnFirestore(coleccion, datos, mostrarIndicador = true) {
             window.guardadosEnCurso[coleccion] = false;
             console.log(`🔓 Guardado completado para ${coleccion}`);
             
-            // RECONECTAR LISTENER después de que Firebase propague los cambios
+            // RECONECTAR LISTENER después de 30 SEGUNDOS - tiempo suficiente para propagación completa
             if (wasConnected) {
                 setTimeout(() => {
-                    console.log(`▶️ Reconectando listener de ${coleccion}...`);
+                    console.log(`▶️ Reconectando listener de ${coleccion} después de 30 segundos...`);
                     iniciarListenerIndividual(coleccion);
-                }, 10000); // 10 segundos para dar tiempo a propagación
+                }, 30000); // 30 segundos
             }
         }, 5000);
         
@@ -27030,10 +27030,23 @@ window.guardarDatos = async function() {
 // Alias para compatibilidad con código existente
 window.save = window.guardarDatos;
 
+// Sistema de throttle para evitar guardados duplicados
+if (!window.ultimoGuardado) window.ultimoGuardado = {};
+
 // Función específica para guardar solo una colección (más eficiente)
 window.saveCollection = async function(coleccion) {
     if (!currentUser) {
         console.warn('⚠️ Usuario no autenticado');
+        return;
+    }
+    
+    // THROTTLE: No permitir guardar si se guardó hace menos de 3 segundos
+    const ahora = Date.now();
+    const ultimoGuardado = window.ultimoGuardado[coleccion] || 0;
+    const tiempoDesdeUltimoGuardado = ahora - ultimoGuardado;
+    
+    if (tiempoDesdeUltimoGuardado < 3000) {
+        console.log(`⏭️ Throttle: Ignorando guardado de ${coleccion} (guardado hace ${Math.round(tiempoDesdeUltimoGuardado/1000)}s)`);
         return;
     }
     
@@ -27049,6 +27062,9 @@ window.saveCollection = async function(coleccion) {
             console.log(`⏭️ Saltando guardado de ${coleccion} (objeto vacío)`);
             return;
         }
+        
+        // Registrar timestamp del guardado
+        window.ultimoGuardado[coleccion] = ahora;
         
         await guardarEnFirestore(coleccion, window.db[coleccion], true);
     }
